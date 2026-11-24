@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>День рождения мамы</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--pink:#ff8fb1;--pink2:#ffd3e2;--bg1:#fff0f5;--bg2:#fff6e5;--text:#5a2a3c;--gold:#ffc857;--card:#ffffffcc}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+background:linear-gradient(160deg,var(--bg1),var(--bg2));min-height:100vh;padding:16px 14px 100px;overflow-x:hidden}
+.float{position:fixed;top:-30px;font-size:22px;animation:fall linear infinite;pointer-events:none;z-index:0}
+@keyframes fall{to{transform:translateY(110vh) rotate(360deg)}}
+.wrap{position:relative;z-index:1;max-width:420px;margin:0 auto}
+h1{text-align:center;font-size:26px;margin:6px 0 4px}
+.sub{text-align:center;margin:0 0 16px;opacity:.8}
+.card{background:var(--card);border-radius:22px;padding:16px;margin-bottom:14px;box-shadow:0 6px 20px #ff8fb133;backdrop-filter:blur(6px)}
+.card h2{font-size:16px;margin:0 0 10px}
+.nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-weight:700}
+.nav button{border:0;background:var(--pink2);color:var(--text);width:36px;height:36px;border-radius:50%;font-size:18px}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;text-align:center}
+.dow{font-size:12px;opacity:.6}
+.day{border:0;background:#fff;border-radius:12px;aspect-ratio:1;font-size:15px;color:var(--text)}
+.day.off{opacity:.25}
+.day.sel{background:var(--pink);color:#fff;font-weight:700;transform:scale(1.08);box-shadow:0 3px 10px #ff8fb188}
+.slots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.slot{border:2px solid var(--pink2);background:#fff;border-radius:14px;padding:10px 0;font-size:15px;color:var(--text)}
+.slot.sel{background:var(--pink);border-color:var(--pink);color:#fff;font-weight:700}
+input{width:100%;border:2px solid var(--pink2);border-radius:14px;padding:12px;font-size:15px;outline:none;color:var(--text)}
+input:focus{border-color:var(--pink)}
+.bar{position:fixed;left:0;right:0;bottom:0;padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));z-index:5;
+background:linear-gradient(transparent,#fff6e5 40%)}
+#ok{display:block;width:100%;max-width:420px;margin:0 auto;border:0;border-radius:18px;padding:16px;font-size:17px;font-weight:700;
+color:#fff;background:linear-gradient(90deg,#ff8fb1,#ff6f9c);box-shadow:0 6px 18px #ff6f9c66}
+#ok:disabled{background:#e8c9d3;box-shadow:none}
+#sum{text-align:center;font-size:14px;margin-bottom:8px;min-height:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎂 День рождения мамы 🎉</h1>
+  <p class="sub">Выбери дату и время праздника 💐</p>
+
+  <div class="card">
+    <h2>📅 Дата</h2>
+    <div class="nav"><button id="prev">‹</button><span id="mon"></span><button id="next">›</button></div>
+    <div class="grid" id="dows"></div>
+    <div class="grid" id="days" style="margin-top:6px"></div>
+  </div>
+
+  <div class="card">
+    <h2>⏰ Время</h2>
+    <div class="slots" id="slots"></div>
+  </div>
+
+  <div class="card">
+    <h2>💌 Твоё имя</h2>
+    <input id="name" placeholder="Например, Анечка" maxlength="40">
+  </div>
+</div>
+
+<div class="bar">
+  <div id="sum"></div>
+  <button id="ok" disabled>Выбери дату и время ✨</button>
+</div>
+
+<script>
+const tg = window.Telegram && Telegram.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+// падающие праздничные эмодзи
+['🎈','🎉','🌸','🎂','✨','💖','🎁'].forEach((e,i)=>{
+  for(let k=0;k<2;k++){
+    const s=document.createElement('span');
+    s.className='float';s.textContent=e;
+    s.style.left=Math.random()*95+'vw';
+    s.style.animationDuration=(9+Math.random()*8)+'s';
+    s.style.animationDelay=(-Math.random()*12)+'s';
+    document.body.appendChild(s);
+  }
+});
+
+const MONTHS=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const MONTHS_G=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+const today=new Date(); today.setHours(0,0,0,0);
+let view=new Date(today.getFullYear(),today.getMonth(),1), selDate=null, selTime=null;
+
+document.getElementById('dows').innerHTML=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(d=>`<div class="dow">${d}</div>`).join('');
+
+function renderCal(){
+  document.getElementById('mon').textContent=MONTHS[view.getMonth()]+' '+view.getFullYear();
+  const first=(view.getDay()+6)%7, n=new Date(view.getFullYear(),view.getMonth()+1,0).getDate();
+  let h='<div></div>'.repeat(first);
+  for(let d=1;d<=n;d++){
+    const dt=new Date(view.getFullYear(),view.getMonth(),d);
+    const past=dt<today, sel=selDate&&+selDate===+dt;
+    h+=`<button class="day${past?' off':''}${sel?' sel':''}" data-d="${d}" ${past?'disabled':''}>${d}</button>`;
+  }
+  document.getElementById('days').innerHTML=h;
+}
+document.getElementById('days').onclick=e=>{
+  const b=e.target.closest('.day'); if(!b) return;
+  selDate=new Date(view.getFullYear(),view.getMonth(),+b.dataset.d);
+  renderCal(); update(); tg&&tg.HapticFeedback&&tg.HapticFeedback.selectionChanged();
+};
+document.getElementById('prev').onclick=()=>{
+  const p=new Date(view.getFullYear(),view.getMonth()-1,1);
+  if(p>=new Date(today.getFullYear(),today.getMonth(),1)){view=p;renderCal();}
+};
+document.getElementById('next').onclick=()=>{view=new Date(view.getFullYear(),view.getMonth()+1,1);renderCal();};
+
+const times=[];for(let h=10;h<=21;h++)times.push(h+':00');
+document.getElementById('slots').innerHTML=times.map(t=>`<button class="slot" data-t="${t}">${t}</button>`).join('');
+document.getElementById('slots').onclick=e=>{
+  const b=e.target.closest('.slot'); if(!b) return;
+  selTime=b.dataset.t;
+  document.querySelectorAll('.slot').forEach(s=>s.classList.toggle('sel',s===b));
+  update(); tg&&tg.HapticFeedback&&tg.HapticFeedback.selectionChanged();
+};
+
+function fmt(d){return d.getDate()+' '+MONTHS_G[d.getMonth()];}
+function update(){
+  const ok=document.getElementById('ok'), ready=selDate&&selTime;
+  ok.disabled=!ready;
+  ok.textContent=ready?'Подтвердить 🎈':'Выбери дату и время ✨';
+  document.getElementById('sum').textContent=ready?`🎀 ${fmt(selDate)} в ${selTime}`:'';
+}
+document.getElementById('ok').onclick=()=>{
+  const iso=[selDate.getFullYear(),String(selDate.getMonth()+1).padStart(2,'0'),String(selDate.getDate()).padStart(2,'0')].join('-');
+  const data={date:iso,date_text:fmt(selDate),time:selTime,name:document.getElementById('name').value.trim()};
+  if(tg){ tg.sendData(JSON.stringify(data)); }
+  else alert('Открыто вне Telegram:\n'+JSON.stringify(data));
+};
+renderCal();
+</script>
+</body>
+</html>
