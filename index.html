@@ -116,15 +116,19 @@ const toT=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(
 const endT=t=>toT(toM(t)+cfg.dur);
 const isoD=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
 function slotsFor(d){
-  const w=cfg.work[d.getDay()]; if(!w) return [];
+  const w=(cfg.free||cfg.win)?[0,0]:cfg.work[d.getDay()]; if(!w) return [];
   const now=new Date(), nowM=now.getHours()*60+now.getMinutes()+60;
   const busy=cfg.busy.filter(b=>b[0]===isoD(d)), out=[];
-  for(let s=toM(w[0]); s+cfg.dur<=toM(w[1]); s+=cfg.step){
+  const cand=[];
+  if(cfg.win){cfg.win.filter(x=>x[0]===isoD(d)).forEach(x=>{for(let s=toM(x[1]); s+cfg.dur<=toM(x[2]); s+=cfg.step) cand.push(s);});}
+  else if(cfg.free){(cfg.free[isoD(d)]||'').split(',').filter(Boolean).forEach(t=>cand.push(toM(t)));}
+  else{for(let s=toM(w[0]); s+cfg.dur<=toM(w[1]); s+=cfg.step) cand.push(s);}
+  for(const s of cand){
     if(+d===+today&&s<nowM) continue;
     if(busy.some(b=>s<toM(b[2])+cfg.buf && s+cfg.dur+cfg.buf>toM(b[1]))) continue;
     out.push(toT(s));
   }
-  return out;
+  return [...new Set(out)].sort();
 }
 function renderSlots(){
   const l=slotsFor(selDate);
