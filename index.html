@@ -39,8 +39,8 @@ color:#fff;background:linear-gradient(90deg,#ff8fb1,#ff6f9c);box-shadow:0 6px 18
 </head>
 <body>
 <div class="wrap">
-  <h1>🎂 День рождения мамы 🎉</h1>
-  <p class="sub">Выбери дату и время праздника 💐</p>
+  <h1>🎂 Подарок для мамы 🎉</h1>
+  <p class="sub">Для подарка нужно закладывать 2 часа свободного времени 💐</p>
 
   <div class="card">
     <h2>📅 Дата</h2>
@@ -50,8 +50,8 @@ color:#fff;background:linear-gradient(90deg,#ff8fb1,#ff6f9c);box-shadow:0 6px 18
   </div>
 
   <div class="card">
-    <h2>⏰ Время</h2>
-    <div class="slots" id="slots"></div>
+    <h2>⏰ Время начала</h2>
+    <div class="slots" id="slots"><p style="grid-column:1/-1;margin:0;opacity:.7">Сначала выбери дату 🌸</p></div>
   </div>
 
   <div class="card">
@@ -94,7 +94,7 @@ function renderCal(){
   let h='<div></div>'.repeat(first);
   for(let d=1;d<=n;d++){
     const dt=new Date(view.getFullYear(),view.getMonth(),d);
-    const past=dt<today, sel=selDate&&+selDate===+dt;
+    const past=dt<today||!slotsFor(dt).length, sel=selDate&&+selDate===+dt;
     h+=`<button class="day${past?' off':''}${sel?' sel':''}" data-d="${d}" ${past?'disabled':''}>${d}</button>`;
   }
   document.getElementById('days').innerHTML=h;
@@ -102,7 +102,7 @@ function renderCal(){
 document.getElementById('days').onclick=e=>{
   const b=e.target.closest('.day'); if(!b) return;
   selDate=new Date(view.getFullYear(),view.getMonth(),+b.dataset.d);
-  renderCal(); update(); tg&&tg.HapticFeedback&&tg.HapticFeedback.selectionChanged();
+  selTime=null; renderCal(); renderSlots(); update(); tg&&tg.HapticFeedback&&tg.HapticFeedback.selectionChanged();
 };
 document.getElementById('prev').onclick=()=>{
   const p=new Date(view.getFullYear(),view.getMonth()-1,1);
@@ -110,8 +110,27 @@ document.getElementById('prev').onclick=()=>{
 };
 document.getElementById('next').onclick=()=>{view=new Date(view.getFullYear(),view.getMonth()+1,1);renderCal();};
 
-const times=[];for(let h=10;h<=21;h++)times.push(h+':00');
-document.getElementById('slots').innerHTML=times.map(t=>`<button class="slot" data-t="${t}">${t}</button>`).join('');
+const cfg=(()=>{try{return JSON.parse(new URLSearchParams(location.search).get('cfg'))}catch(e){return null}})()||{dur:100,step:30,buf:0,work:{1:["10:00","19:00"],2:["10:00","19:00"],3:["10:00","19:00"],4:["10:00","19:00"],5:["10:00","19:00"],6:["11:00","16:00"]},busy:[]};
+const toM=t=>{const[a,b]=t.split(':');return +a*60+ +b};
+const toT=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+const endT=t=>toT(toM(t)+cfg.dur);
+const isoD=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+function slotsFor(d){
+  const w=cfg.work[d.getDay()]; if(!w) return [];
+  const now=new Date(), nowM=now.getHours()*60+now.getMinutes()+60;
+  const busy=cfg.busy.filter(b=>b[0]===isoD(d)), out=[];
+  for(let s=toM(w[0]); s+cfg.dur<=toM(w[1]); s+=cfg.step){
+    if(+d===+today&&s<nowM) continue;
+    if(busy.some(b=>s<toM(b[2])+cfg.buf && s+cfg.dur+cfg.buf>toM(b[1]))) continue;
+    out.push(toT(s));
+  }
+  return out;
+}
+function renderSlots(){
+  const l=slotsFor(selDate);
+  document.getElementById('slots').innerHTML=l.map(t=>`<button class="slot" data-t="${t}">${t}</button>`).join('')||'<p>Нет свободных окошек 😔</p>';
+}
+
 document.getElementById('slots').onclick=e=>{
   const b=e.target.closest('.slot'); if(!b) return;
   selTime=b.dataset.t;
@@ -124,11 +143,11 @@ function update(){
   const ok=document.getElementById('ok'), ready=selDate&&selTime;
   ok.disabled=!ready;
   ok.textContent=ready?'Подтвердить 🎈':'Выбери дату и время ✨';
-  document.getElementById('sum').textContent=ready?`🎀 ${fmt(selDate)} в ${selTime}`:'';
+  document.getElementById('sum').textContent=ready?`🎀 ${fmt(selDate)} в ${selTime}–${endT(selTime)}`:'';
 }
 document.getElementById('ok').onclick=()=>{
   const iso=[selDate.getFullYear(),String(selDate.getMonth()+1).padStart(2,'0'),String(selDate.getDate()).padStart(2,'0')].join('-');
-  const data={date:iso,date_text:fmt(selDate),time:selTime,name:document.getElementById('name').value.trim()};
+  const data={date:iso,date_text:fmt(selDate),time:selTime,end:endT(selTime),name:document.getElementById('name').value.trim()};
   if(tg){ tg.sendData(JSON.stringify(data)); }
   else alert('Открыто вне Telegram:\n'+JSON.stringify(data));
 };
